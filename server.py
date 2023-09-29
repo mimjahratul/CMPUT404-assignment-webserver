@@ -1,5 +1,6 @@
 #  coding: utf-8 
 import socketserver
+import os
 
 # Copyright 2013 Abram Hindle, Eddie Antonio Santos
 # 
@@ -30,9 +31,72 @@ import socketserver
 class MyWebServer(socketserver.BaseRequestHandler):
     
     def handle(self):
-        self.data = self.request.recv(1024).strip()
-        print ("Got a request of: %s\n" % self.data)
-        self.request.sendall(bytearray("OK",'utf-8'))
+        # self.data = self.request.recv(1024).strip()
+        # print ("Got a request of: %s\n" % self.data)
+        # self.request.sendall(bytearray("OK",'utf-8'))
+        self.data = self.request.recv(1024).strip().decode('utf-8')
+        print(self.data)
+        method, path, protocol = self.data.split("\r\n")[0].split(" ")
+
+        # # Check that self.data is not empty and contains at least one \r\n
+        # if not self.data or '\r\n' not in self.data:
+        #     print("Received malformed request")
+        #     return
+        
+        # first_line = self.data.split("\r\n")[0]
+    
+        # # Check that the first line contains at least two spaces
+        # if first_line.count(' ') < 2:
+        #     print("Received malformed request: first line lacks required elements")
+        #     return
+    
+        #method, path, protocol = first_line.split(" ")
+
+        # Handle non-GET requests
+        if method != 'GET':
+            response = b"HTTP/1.1 405 Method Not Allowed\r\n\r\nMethod Not Allowed"
+            self.request.sendall(response)
+            return
+        
+        # Construct absolute file path
+        file_path = os.path.abspath(os.path.join('www', path[1:]))
+        
+        # Ensure the path is within ./www
+        if not file_path.startswith(os.path.abspath('www')):
+            response = b"HTTP/1.1 404 Not Found\r\n\r\nFile Not Found"
+            self.request.sendall(response)
+            return
+        
+
+        # Directory handling
+        if os.path.isdir(file_path):
+            if not path.endswith('/'):
+                response = f"HTTP/1.1 301 Moved Permanently\r\nLocation: {path}/\r\n\r\n".encode('utf-8')
+                self.request.sendall(response)
+                return
+            file_path = os.path.join(file_path, 'index.html')
+
+        # File serving with MIME Types
+        if os.path.exists(file_path) and os.path.isfile(file_path):
+            with open(file_path, 'rb') as file:
+                content = file.read()
+            # Set MIME type
+            # mime_type = 'application/octet-stream'
+            if file_path.endswith('.html'):
+                mime_type = 'text/html'
+                response = f"HTTP/1.1 200 OK\r\nContent-Type: {mime_type}\r\n\r\n".encode('utf-8') + content
+            elif file_path.endswith('.css'):
+                mime_type = 'text/css'
+                response = f"HTTP/1.1 200 OK\r\nContent-Type: {mime_type}\r\n\r\n".encode('utf-8') + content
+            else:
+                response = b"HTTP/1.1 404 Not Found\r\n\r\nFile Not Found"
+
+        else:
+            # Return 404 if file not found
+            response = b"HTTP/1.1 404 Not Found\r\n\r\nFile Not Found"
+        
+        # Send response
+        self.request.sendall(response)
 
 if __name__ == "__main__":
     HOST, PORT = "localhost", 8080
