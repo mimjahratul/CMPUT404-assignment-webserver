@@ -33,7 +33,7 @@ class MyWebServer(socketserver.BaseRequestHandler):
     def handle(self):
         self.data = self.request.recv(1024).strip().decode('utf-8')
         print(self.data)
-        method, path = self.data.split("\r\n")[0].split(" ")
+        method, path, protocol = self.data.split("\r\n")[0].split(" ")
 
 
         # Handle non-GET requests
